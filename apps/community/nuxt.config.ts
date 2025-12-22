@@ -6,5 +6,19 @@ export default defineNuxtConfig({
   css: ["@/assets/css/main.css"],
   supabase: {
     redirect: false,
+    useSsrCookies: false,
+    cookieOptions: {
+      maxAge: 60 * 60 * 8, // 8 hours
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    },
+    clientOptions: {
+      auth: {
+        flowType: "pkce",
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    },
   },
 });
