@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme {
+  --color-primary-50: var(--ui-color-primary-50);
+  --color-primary-100: var(--ui-color-primary-100);
+  --color-primary-200: var(--ui-color-primary-200);
+  --color-primary-300: var(--ui-color-primary-300);
+  --color-primary-400: var(--ui-color-primary-400);
+  --color-primary-500: var(--ui-color-primary-500);
+  --color-primary-600: var(--ui-color-primary-600);
+  --color-primary-700: var(--ui-color-primary-700);
+  --color-primary-800: var(--ui-color-primary-800);
+  --color-primary-900: var(--ui-color-primary-900);
+  --color-primary-950: var(--ui-color-primary-950);
+
+  /* Semantic Colors Mapping */
+  --color-app: var(--bg-app);
+  --color-surface: var(--bg-surface);
+  --color-card: var(--bg-card);
+  --color-main: var(--text-main);
+  --color-dim: var(--text-dim);
+  --color-border: var(--border-dim);
+}
+
+:root {
+  --bg-app: #ffffff;
+  --bg-surface: #f9fafb;
+  --bg-card: #ffffff;
+  --text-main: #111827;
+  --text-dim: #4b5563;
+  --border-dim: #e5e7eb;
+}
+
+.dark {
+  --bg-app: #030712;
+  --bg-surface: #0b0f1a;
+  --bg-card: #111827;
+  --text-main: #f9fafb;
+  --text-dim: #9ca3af;
+  --border-dim: #1f2937;
+}
+
+html, body {
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
