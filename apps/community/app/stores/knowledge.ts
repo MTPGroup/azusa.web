@@ -44,9 +44,6 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
         `knowledge/bases${qs}`,
         {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${useSupabaseSession().value?.access_token}`,
-          },
         }
       );
 
@@ -69,9 +66,6 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
         `knowledge/bases/${id}`,
         {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${useSupabaseSession().value?.access_token}`,
-          },
         }
       );
       if (error) throw error;
@@ -88,9 +82,6 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
         `knowledge/bases/${kbId}/files`,
         {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${useSupabaseSession().value?.access_token}`,
-          },
         }
       );
       if (error) throw error;
@@ -114,9 +105,6 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
         {
           method: "POST",
           body: formData,
-          headers: {
-            Authorization: `Bearer ${useSupabaseSession().value?.access_token}`,
-          },
         }
       );
 
@@ -137,9 +125,6 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
       const { data, error } = await client.functions.invoke("knowledge/bases", {
         method: "POST",
         body: kb,
-        headers: {
-          Authorization: `Bearer ${useSupabaseSession().value?.access_token}`,
-        },
       });
 
       if (error) throw error;
@@ -159,9 +144,6 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
         {
           method: "POST",
           body: { query, knowledgeBaseIds },
-          headers: {
-            Authorization: `Bearer ${useSupabaseSession().value?.access_token}`,
-          },
         }
       );
 
@@ -177,9 +159,6 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
     try {
       const { error } = await client.functions.invoke(`knowledge/bases/${id}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${useSupabaseSession().value?.access_token}`,
-        },
       });
 
       if (error) throw error;
