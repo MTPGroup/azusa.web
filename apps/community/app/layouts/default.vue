@@ -2,9 +2,11 @@
 import type { NavigationMenuItem } from "@nuxt/ui";
 
 const session = useSupabaseSession();
+const user = useSupabaseUser();
 const client = useSupabaseClient();
 const userStore = useUserStore();
 const isAuthModalOpen = ref(false);
+const isProfileModalOpen = ref(false);
 
 const openAuthModal = () => {
   isAuthModalOpen.value = true;
@@ -35,6 +37,11 @@ const userMenuItems = computed(() => [
   ],
   [
     {
+      label: "个人资料设置",
+      icon: "i-heroicons-user-circle",
+      onSelect: () => (isProfileModalOpen.value = true),
+    },
+    {
       label: "退出登录",
       icon: "i-heroicons-log-out",
       onSelect: logout,
@@ -47,6 +54,9 @@ const userMenuItems = computed(() => [
   <div class="min-h-screen bg-app text-main flex flex-col">
     <!-- Auth Modal -->
     <AuthModal v-model:isOpen="isAuthModalOpen" />
+
+    <!-- Profile Modal -->
+    <ProfileModal v-model:isOpen="isProfileModalOpen" />
 
     <UHeader class="bg-app/80 backdrop-blur-md border-b border-border">
       <template #title>
@@ -66,7 +76,7 @@ const userMenuItems = computed(() => [
 
         <ClientOnly>
           <div class="flex items-center pl-2">
-            <template v-if="session">
+            <template v-if="user">
               <UDropdownMenu
                 :items="userMenuItems"
                 :popper="{ placement: 'bottom-end' }"

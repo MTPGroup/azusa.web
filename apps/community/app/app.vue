@@ -1,9 +1,6 @@
 <script setup lang="ts">
-const userStore = useUserStore();
-
-onMounted(() => {
-  userStore.fetchProfile();
-});
+// Ensure user store is initialized to start auth listeners
+useUserStore();
 </script>
 
 <template>
