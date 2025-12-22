@@ -407,12 +407,33 @@ const handleDelete = async () => {
           </div>
 
           <div class="p-6 overflow-y-auto space-y-6 flex-1">
+            <div class="flex flex-col items-center gap-4">
+              <div class="relative group">
+                <UAvatar
+                  :src="editForm.avatarUrl"
+                  :alt="editForm.name || '角色头像预览'"
+                  size="3xl"
+                  class="w-24 h-24 ring-4 ring-primary/20 shadow-xl transition-all group-hover:ring-primary/40"
+                />
+                <div
+                  class="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                >
+                  <UIcon
+                    name="i-heroicons-camera"
+                    class="w-8 h-8 text-white"
+                  />
+                </div>
+              </div>
+              <p class="text-xs text-dim">建议使用正方形图片 200x200px</p>
+            </div>
+
             <UFormField label="名称" required>
               <UInput
                 v-model="editForm.name"
                 placeholder="为你的角色起个名字"
                 size="lg"
                 :ui="{ base: 'rounded-xl' }"
+                class="w-full"
               />
             </UFormField>
 
@@ -422,6 +443,7 @@ const handleDelete = async () => {
                 placeholder="https://..."
                 size="lg"
                 :ui="{ base: 'rounded-xl' }"
+                class="w-full"
               />
             </UFormField>
 
@@ -431,6 +453,7 @@ const handleDelete = async () => {
                 placeholder="简单介绍一下角色的背景或性格..."
                 :rows="3"
                 :ui="{ base: 'rounded-xl' }"
+                class="w-full"
               />
             </UFormField>
 
@@ -443,6 +466,7 @@ const handleDelete = async () => {
                 placeholder="你是一个博学多才的助手..."
                 :rows="5"
                 :ui="{ base: 'rounded-xl' }"
+                class="w-full"
               />
             </UFormField>
 

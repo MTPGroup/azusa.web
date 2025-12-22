@@ -316,6 +316,7 @@ const handleDelete = async () => {
                 placeholder="https://..."
                 size="lg"
                 :ui="{ base: 'rounded-xl' }"
+                class="w-full"
               />
             </UFormField>
 
@@ -325,6 +326,7 @@ const handleDelete = async () => {
                 placeholder="简单介绍一下角色的背景或性格..."
                 :rows="3"
                 :ui="{ base: 'rounded-xl' }"
+                class="w-full"
               />
             </UFormField>
 
@@ -337,6 +339,7 @@ const handleDelete = async () => {
                 placeholder="你是一个博学多才的助手..."
                 :rows="5"
                 :ui="{ base: 'rounded-xl' }"
+                class="w-full"
               />
             </UFormField>
 
