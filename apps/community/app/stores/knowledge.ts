@@ -137,6 +137,29 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
     }
   };
 
+  const updateKnowledgeBase = async (
+    id: string,
+    kb: { name?: string; description?: string; isPublic?: boolean }
+  ) => {
+    try {
+      const { data, error } = await client.functions.invoke(
+        `knowledge/bases/${id}`,
+        {
+          method: "PATCH",
+          body: kb,
+        }
+      );
+
+      if (error) throw error;
+
+      await fetchKnowledgeBases();
+      return data?.data?.knowledgeBase as KnowledgeBase;
+    } catch (err) {
+      console.error("Update knowledge base error:", err);
+      return null;
+    }
+  };
+
   const searchKnowledge = async (query: string, knowledgeBaseIds: string[]) => {
     try {
       const { data, error } = await client.functions.invoke(
@@ -232,6 +255,7 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
     fetchKnowledgeFiles,
     uploadDocument,
     createKnowledgeBase,
+    updateKnowledgeBase,
     deleteKnowledgeBase,
     searchKnowledge,
     subscribeToChanges,

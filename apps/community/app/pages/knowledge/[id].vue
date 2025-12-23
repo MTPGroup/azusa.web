@@ -10,6 +10,14 @@ const isUploadModalOpen = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 const selectedFile = ref<File | null>(null);
 
+const isEditModalOpen = ref(false);
+const isUpdating = ref(false);
+const editForm = ref({
+  name: "",
+  description: "",
+  isPublic: false,
+});
+
 const isDeleteModalOpen = ref(false);
 const deleting = ref(false);
 
@@ -71,6 +79,31 @@ const handleUpload = async () => {
     selectedFile.value = null;
     fetchDetails(); // Refresh list
   }
+};
+
+const openEditModal = () => {
+  if (!kb.value) return;
+  editForm.value = {
+    name: kb.value.name,
+    description: kb.value.description || "",
+    isPublic: kb.value.isPublic,
+  };
+  isEditModalOpen.value = true;
+};
+
+const handleUpdate = async () => {
+  if (!editForm.value.name) return;
+  isUpdating.value = true;
+  const result = await knowledgeStore.updateKnowledgeBase(kbId, {
+    name: editForm.value.name,
+    description: editForm.value.description,
+    isPublic: editForm.value.isPublic,
+  });
+  if (result) {
+    isEditModalOpen.value = false;
+    await fetchDetails();
+  }
+  isUpdating.value = false;
 };
 
 const handleSearch = async () => {
@@ -144,10 +177,25 @@ const formatSize = (bytes: number) => {
               @click="$router.push('/knowledge')"
             />
             <h1 class="text-3xl font-bold">{{ kb.name }}</h1>
+            <UBadge
+              v-if="kb.isPublic"
+              size="xs"
+              color="primary"
+              variant="subtle"
+              class="rounded-full"
+              >公开</UBadge
+            >
           </div>
           <p class="text-dim ml-10">{{ kb.description || "暂无描述" }}</p>
         </div>
         <div class="flex items-center gap-3 w-full md:w-auto ml-10 md:ml-0">
+          <UButton
+            v-if="userStore.profile?.id === kb.author?.id"
+            icon="i-heroicons-pencil-square"
+            color="neutral"
+            variant="soft"
+            @click="openEditModal"
+          />
           <UButton
             v-if="userStore.profile?.id === kb.author?.id"
             icon="i-heroicons-trash"
@@ -401,6 +449,68 @@ const formatSize = (bytes: number) => {
               </UButton>
             </div>
           </div>
+        </UCard>
+      </template>
+    </UModal>
+
+    <!-- Edit Knowledge Base Modal -->
+    <UModal v-model:open="isEditModalOpen">
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between w-full">
+              <h3 class="text-base font-semibold">编辑知识库</h3>
+              <UButton
+                color="neutral"
+                variant="ghost"
+                icon="i-heroicons-x-mark-20-solid"
+                class="-my-1"
+                @click="isEditModalOpen = false"
+              />
+            </div>
+          </template>
+
+          <UForm :state="editForm" class="space-y-4" @submit="handleUpdate">
+            <UFormField label="名称" name="name" required>
+              <UInput
+                v-model="editForm.name"
+                placeholder="知识库名称"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField label="描述" name="description">
+              <UTextarea
+                v-model="editForm.description"
+                placeholder="简单描述这个知识库"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField
+              label="公开访问"
+              name="isPublic"
+              help="开启后，其他用户可以查看并搜索该知识库内容"
+            >
+              <USwitch v-model="editForm.isPublic" />
+            </UFormField>
+
+            <div class="flex justify-end gap-3 mt-6">
+              <UButton
+                variant="ghost"
+                color="neutral"
+                @click="isEditModalOpen = false"
+                >取消</UButton
+              >
+              <UButton
+                type="submit"
+                color="primary"
+                class="bg-gradient-to-r from-green-500 to-teal-500"
+                :loading="isUpdating"
+                >保存修改</UButton
+              >
+            </div>
+          </UForm>
         </UCard>
       </template>
     </UModal>

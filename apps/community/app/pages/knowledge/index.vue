@@ -137,7 +137,12 @@ const formatDate = (dateStr: string) => {
             >
               {{ kb.name }}
             </h3>
-            <UBadge v-if="kb.isPublic" size="xs" color="neutral" variant="soft"
+            <UBadge
+              v-if="kb.isPublic"
+              size="xs"
+              color="primary"
+              variant="subtle"
+              class="rounded-full"
               >公开</UBadge
             >
           </div>
@@ -228,13 +233,18 @@ const formatDate = (dateStr: string) => {
 
           <UForm :state="newKB" class="space-y-4" @submit="handleCreate">
             <UFormField label="名称" name="name" required>
-              <UInput v-model="newKB.name" placeholder="例如：产品设计文档" />
+              <UInput
+                v-model="newKB.name"
+                placeholder="例如：产品设计文档"
+                class="w-full"
+              />
             </UFormField>
 
             <UFormField label="描述" name="description">
               <UTextarea
                 v-model="newKB.description"
                 placeholder="简单描述一下这个知识库的内容..."
+                class="w-full"
               />
             </UFormField>
 
@@ -243,7 +253,7 @@ const formatDate = (dateStr: string) => {
               name="isPublic"
               help="开启后，其他用户可以查看并搜索该知识库中的文档"
             >
-              <UToggle v-model="newKB.isPublic" />
+              <USwitch v-model="newKB.isPublic" />
             </UFormField>
 
             <div class="flex justify-end gap-3 mt-6">
