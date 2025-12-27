@@ -21,6 +21,10 @@ const editForm = ref({
 const isDeleteModalOpen = ref(false);
 const deleting = ref(false);
 
+const isFileDeleteModalOpen = ref(false);
+const deletingFile = ref(false);
+const fileToDelete = ref<any>(null);
+
 const router = useRouter();
 const userStore = useUserStore();
 
@@ -33,6 +37,23 @@ const handleDelete = async () => {
     deleting.value = false;
     isDeleteModalOpen.value = false;
   }
+};
+
+const handleDeleteFile = async () => {
+  if (!fileToDelete.value) return;
+  deletingFile.value = true;
+  const success = await knowledgeStore.deleteKnowledgeFile(
+    kbId,
+    fileToDelete.value.id
+  );
+
+  if (success) {
+    files.value = files.value.filter((file) => file.id !== fileToDelete.value.id);
+    isFileDeleteModalOpen.value = false;
+    fileToDelete.value = null;
+  }
+
+  deletingFile.value = false;
 };
 
 const searchQuery = ref("");
@@ -241,6 +262,36 @@ const formatSize = (bytes: number) => {
         </template>
       </UModal>
 
+      <UModal v-model:open="isFileDeleteModalOpen">
+        <template #content>
+          <UCard v-if="fileToDelete">
+            <template #header>
+              <h3 class="text-base font-semibold">删除文档</h3>
+            </template>
+            <p class="text-dim">
+              确定要删除文档
+              <span class="text-main font-bold">"{{ fileToDelete.fileName }}"</span>
+              吗？此操作不可撤销。
+            </p>
+            <div class="flex justify-end gap-3 mt-6">
+              <UButton
+                variant="ghost"
+                color="neutral"
+                @click="isFileDeleteModalOpen = false"
+                >取消</UButton
+              >
+              <UButton
+                color="error"
+                :loading="deletingFile"
+                @click="handleDeleteFile"
+              >
+                确认删除
+              </UButton>
+            </div>
+          </UCard>
+        </template>
+      </UModal>
+
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Left Column: Document List -->
         <div class="lg:col-span-2 space-y-6">
@@ -305,10 +356,15 @@ const formatSize = (bytes: number) => {
                     :help="file.errorMessage"
                   />
                   <UButton
+                    v-if="userStore.profile?.id === kb.author?.id"
                     icon="i-heroicons-trash"
                     color="neutral"
                     variant="ghost"
                     size="sm"
+                    @click.stop="
+                      fileToDelete = file;
+                      isFileDeleteModalOpen = true;
+                    "
                   />
                 </div>
               </div>

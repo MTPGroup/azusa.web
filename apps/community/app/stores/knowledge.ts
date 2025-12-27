@@ -194,6 +194,24 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
     }
   };
 
+  const deleteKnowledgeFile = async (kbId: string, fileId: string) => {
+    try {
+      const { error } = await client.functions.invoke(
+        `knowledge/bases/${kbId}/files/${fileId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (error) throw error;
+
+      return true;
+    } catch (err) {
+      console.error("Delete knowledge file error:", err);
+      return false;
+    }
+  };
+
   let kbSubscription: any = null;
 
   const subscribeToChanges = () => {
@@ -257,6 +275,7 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
     createKnowledgeBase,
     updateKnowledgeBase,
     deleteKnowledgeBase,
+    deleteKnowledgeFile,
     searchKnowledge,
     subscribeToChanges,
     unsubscribeFromChanges,
