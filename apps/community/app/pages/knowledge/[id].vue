@@ -1,7 +1,12 @@
 <script setup lang="ts">
+import { useCharacterStore } from "@/stores/characters";
+import type { KnowledgeChatMessage } from "@/stores/knowledge";
+
 const route = useRoute();
 const knowledgeStore = useKnowledgeStore();
+const characterStore = useCharacterStore();
 const kbId = route.params.id as string;
+
 
 const kb = ref<any>(null);
 const files = ref<any[]>([]);
@@ -27,6 +32,21 @@ const fileToDelete = ref<any>(null);
 
 const router = useRouter();
 const userStore = useUserStore();
+const toast = useToast();
+
+const chatMessages = ref<KnowledgeChatMessage[]>([]);
+const chatInput = ref("");
+const chatLoading = ref(false);
+const chatError = ref("");
+const retrievals = ref<any[]>([]);
+const suggestions = ref<string[]>([]);
+const includeSuggestions = ref(false);
+const chatId = ref<string | null>(null);
+const creatingChat = ref(false);
+const selectedCharacterId = ref<string>('');
+const characterOptions = computed(() =>
+  characterStore.characters.map((c) => ({ label: c.name, value: c.id }))
+);
 
 const handleDelete = async () => {
   deleting.value = true;
@@ -71,14 +91,29 @@ const fetchDetails = async () => {
   loading.value = false;
 };
 
+const loadCharacters = async () => {
+  if (characterStore.characters.length === 0) {
+    await characterStore.fetchCharacters({ limit: 20 });
+  }
+};
+
+
 onMounted(() => {
   fetchDetails();
+  loadCharacters();
   knowledgeStore.subscribeToFileChanges(kbId, () => {
     // Only refresh the files list to avoid full detail reload
     knowledgeStore.fetchKnowledgeFiles(kbId).then((data) => {
       files.value = data;
     });
   });
+});
+
+onUnmounted(() => {
+  knowledgeStore.unsubscribeFromFileChanges();
+  if (chatId.value) {
+    knowledgeStore.deleteChat(chatId.value);
+  }
 });
 
 onUnmounted(() => {
@@ -140,6 +175,96 @@ const handleSearch = async () => {
   }
 };
 
+const insertSnippet = (snippet: string) => {
+  chatInput.value = chatInput.value
+    ? `${chatInput.value}\n${snippet}`
+    : snippet;
+};
+
+const ensureChatForCharacter = async () => {
+  if (!selectedCharacterId.value) {
+    chatError.value = "请先选择一个 AI 角色";
+    toast.add({ title: chatError.value, color: "warning" });
+    return null;
+  }
+
+  if (chatId.value) return chatId.value;
+
+  creatingChat.value = true;
+  const chat = await knowledgeStore.createCharacterChat({
+    characterId: selectedCharacterId.value,
+    name: kb.value?.name ? `${kb.value.name} 对话` : "知识库对话",
+    avatar: kb.value?.author?.avatar || null,
+  });
+  creatingChat.value = false;
+
+  const id = (chat as any)?.id || (chat as any)?.chatId || (chat as any)?.chat?.id;
+  if (!id) {
+    chatError.value = "创建对话失败，请稍后重试";
+    toast.add({ title: chatError.value, color: "error" });
+    return null;
+  }
+
+  chatId.value = id;
+  return id;
+};
+
+const sendChat = async () => {
+  if (!chatInput.value.trim() || chatLoading.value) return;
+  chatError.value = "";
+  const chatSessionId = await ensureChatForCharacter();
+  if (!chatSessionId) return;
+
+  const messageText = chatInput.value.trim();
+  const pendingMessage: KnowledgeChatMessage = {
+    role: "user",
+    content: messageText,
+  };
+  chatMessages.value = [...chatMessages.value, pendingMessage];
+  chatInput.value = "";
+  chatLoading.value = true;
+
+  const assistantIndex = chatMessages.value.length;
+  chatMessages.value = [
+    ...chatMessages.value,
+    { role: "assistant", content: "" },
+  ];
+
+  let gotStream = false;
+  const appendAssistant = (delta: string) => {
+    if (!delta) return;
+    gotStream = true;
+    chatMessages.value = chatMessages.value.map((msg, idx) =>
+      idx === assistantIndex ? { ...msg, content: msg.content + delta } : msg
+    );
+  };
+
+  try {
+    const [assistantReply, docs] = await Promise.all([
+      knowledgeStore.streamChatMessage({
+        chatId: chatSessionId,
+        text: messageText,
+        onChunk: appendAssistant,
+      }),
+      knowledgeStore.searchKnowledge(messageText, [kbId]).catch(() => []),
+    ]);
+
+    if (!gotStream && assistantReply) {
+      appendAssistant(assistantReply);
+    }
+
+    if (!assistantReply && !gotStream) {
+      chatError.value = "对话调用失败，请稍后重试";
+      toast.add({ title: chatError.value, color: "error" });
+    }
+
+    retrievals.value = docs || [];
+    suggestions.value = [];
+  } finally {
+    chatLoading.value = false;
+  }
+};
+
 const getStatusColor = (status: string) => {
   switch (status) {
     case "completed":
@@ -186,50 +311,23 @@ const formatSize = (bytes: number) => {
     </div>
 
     <div v-else-if="kb">
-      <div
-        class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10"
-      >
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
         <div>
           <div class="flex items-center gap-2 mb-2">
-            <UButton
-              icon="i-heroicons-arrow-left"
-              color="neutral"
-              variant="ghost"
-              @click="$router.push('/knowledge')"
-            />
+            <UButton icon="i-heroicons-arrow-left" color="neutral" variant="ghost"
+              @click="$router.push('/knowledge')" />
             <h1 class="text-3xl font-bold">{{ kb.name }}</h1>
-            <UBadge
-              v-if="kb.isPublic"
-              size="xs"
-              color="primary"
-              variant="subtle"
-              class="rounded-full"
-              >公开</UBadge
-            >
+            <UBadge v-if="kb.isPublic" size="xs" color="primary" variant="subtle" class="rounded-full">公开</UBadge>
           </div>
           <p class="text-dim ml-10">{{ kb.description || "暂无描述" }}</p>
         </div>
         <div class="flex items-center gap-3 w-full md:w-auto ml-10 md:ml-0">
-          <UButton
-            v-if="userStore.profile?.id === kb.author?.id"
-            icon="i-heroicons-pencil-square"
-            color="neutral"
-            variant="soft"
-            @click="openEditModal"
-          />
-          <UButton
-            v-if="userStore.profile?.id === kb.author?.id"
-            icon="i-heroicons-trash"
-            color="error"
-            variant="soft"
-            @click="isDeleteModalOpen = true"
-          />
-          <UButton
-            color="primary"
-            class="bg-gradient-to-r from-green-500 to-teal-500 border-none shrink-0"
-            icon="i-heroicons-cloud-arrow-up"
-            @click="isUploadModalOpen = true"
-          >
+          <UButton v-if="userStore.profile?.id === kb.author?.id" icon="i-heroicons-pencil-square" color="neutral"
+            variant="soft" @click="openEditModal" />
+          <UButton v-if="userStore.profile?.id === kb.author?.id" icon="i-heroicons-trash" color="error" variant="soft"
+            @click="isDeleteModalOpen = true" />
+          <UButton color="primary" class="bg-gradient-to-r from-green-500 to-teal-500 border-none shrink-0"
+            icon="i-heroicons-cloud-arrow-up" @click="isUploadModalOpen = true">
             上传文档
           </UButton>
         </div>
@@ -248,12 +346,7 @@ const formatSize = (bytes: number) => {
               吗？此操作不可撤销，且会删除该知识库下的所有文档。
             </p>
             <div class="flex justify-end gap-3 mt-6">
-              <UButton
-                variant="ghost"
-                color="neutral"
-                @click="isDeleteModalOpen = false"
-                >取消</UButton
-              >
+              <UButton variant="ghost" color="neutral" @click="isDeleteModalOpen = false">取消</UButton>
               <UButton color="error" :loading="deleting" @click="handleDelete">
                 确认删除
               </UButton>
@@ -274,17 +367,8 @@ const formatSize = (bytes: number) => {
               吗？此操作不可撤销。
             </p>
             <div class="flex justify-end gap-3 mt-6">
-              <UButton
-                variant="ghost"
-                color="neutral"
-                @click="isFileDeleteModalOpen = false"
-                >取消</UButton
-              >
-              <UButton
-                color="error"
-                :loading="deletingFile"
-                @click="handleDeleteFile"
-              >
+              <UButton variant="ghost" color="neutral" @click="isFileDeleteModalOpen = false">取消</UButton>
+              <UButton color="error" :loading="deletingFile" @click="handleDeleteFile">
                 确认删除
               </UButton>
             </div>
@@ -296,36 +380,26 @@ const formatSize = (bytes: number) => {
         <!-- Left Column: Document List -->
         <div class="lg:col-span-2 space-y-6">
           <div class="bg-card border border-border rounded-2xl overflow-hidden">
-            <div
-              class="p-6 border-b border-border flex justify-between items-center"
-            >
+            <div class="p-6 border-b border-border flex justify-between items-center">
               <h2 class="text-xl font-semibold">文档列表</h2>
               <span class="text-sm text-dim">{{ files.length }} 个文档</span>
             </div>
 
             <div v-if="files.length === 0" class="p-20 text-center">
-              <UIcon
-                name="i-heroicons-document-text"
-                class="w-16 h-16 text-dim mb-4 mx-auto"
-              />
+              <UIcon name="i-heroicons-document-text" class="w-16 h-16 text-dim mb-4 mx-auto" />
               <p class="text-dim">此知识库下暂无文档</p>
             </div>
 
             <div v-else class="divide-y divide-border">
-              <div
-                v-for="file in files"
-                :key="file.id"
-                class="p-4 hover:bg-surface transition-colors flex items-center gap-4"
-              >
-                <div
-                  class="w-10 h-10 bg-surface rounded flex items-center justify-center text-xl"
-                >
+              <div v-for="file in files" :key="file.id"
+                class="p-4 hover:bg-surface transition-colors flex items-center gap-4">
+                <div class="w-10 h-10 bg-surface rounded flex items-center justify-center text-xl">
                   {{
                     file.fileType.includes("pdf")
                       ? "📕"
                       : file.fileType.includes("word")
-                      ? "📘"
-                      : "📄"
+                        ? "📘"
+                        : "📄"
                   }}
                 </div>
                 <div class="flex-grow min-w-0">
@@ -333,11 +407,7 @@ const formatSize = (bytes: number) => {
                     <span class="font-medium truncate">{{
                       file.fileName
                     }}</span>
-                    <UBadge
-                      :color="getStatusColor(file.status)"
-                      variant="soft"
-                      size="xs"
-                    >
+                    <UBadge :color="getStatusColor(file.status)" variant="soft" size="xs">
                       {{ getStatusLabel(file.status) }}
                     </UBadge>
                   </div>
@@ -348,24 +418,13 @@ const formatSize = (bytes: number) => {
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <UButton
-                    v-if="file.status === 'failed'"
-                    icon="i-heroicons-exclamation-circle"
-                    color="error"
-                    variant="ghost"
-                    :help="file.errorMessage"
-                  />
-                  <UButton
-                    v-if="userStore.profile?.id === kb.author?.id"
-                    icon="i-heroicons-trash"
-                    color="neutral"
-                    variant="ghost"
-                    size="sm"
-                    @click.stop="
+                  <UButton v-if="file.status === 'failed'" icon="i-heroicons-exclamation-circle" color="error"
+                    variant="ghost" :help="file.errorMessage" />
+                  <UButton v-if="userStore.profile?.id === kb.author?.id" icon="i-heroicons-trash" color="neutral"
+                    variant="ghost" size="sm" @click.stop="
                       fileToDelete = file;
-                      isFileDeleteModalOpen = true;
-                    "
-                  />
+                    isFileDeleteModalOpen = true;
+                    " />
                 </div>
               </div>
             </div>
@@ -376,40 +435,25 @@ const formatSize = (bytes: number) => {
         <div class="space-y-6">
           <div class="bg-card border border-border rounded-2xl p-6">
             <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-              <UIcon
-                name="i-heroicons-magnifying-glass-circle"
-                class="w-6 h-6 text-green-500"
-              />
+              <UIcon name="i-heroicons-magnifying-glass-circle" class="w-6 h-6 text-green-500" />
               语义检索
             </h2>
             <div class="space-y-4">
-              <UInput
-                v-model="searchQuery"
-                placeholder="在此知识库中搜索问题..."
-                @keyup.enter="handleSearch"
-              >
+              <UInput v-model="searchQuery" placeholder="在此知识库中搜索问题..." @keyup.enter="handleSearch">
                 <template #trailing>
                   <UKbd>Enter</UKbd>
                 </template>
               </UInput>
-              <UButton
-                block
-                color="primary"
-                class="bg-gradient-to-r from-green-500 to-teal-500 border-none"
-                :loading="searching"
-                @click="handleSearch"
-              >
+              <UButton block color="primary" class="bg-gradient-to-r from-green-500 to-teal-500 border-none"
+                :loading="searching" @click="handleSearch">
                 搜索
               </UButton>
             </div>
 
             <!-- Search Results -->
             <div v-if="searchResults.length > 0" class="mt-6 space-y-4">
-              <div
-                v-for="(res, idx) in searchResults"
-                :key="idx"
-                class="bg-surface border border-border rounded-lg p-3 text-sm"
-              >
+              <div v-for="(res, idx) in searchResults" :key="idx"
+                class="bg-surface border border-border rounded-lg p-3 text-sm">
                 <div class="flex justify-between text-xs text-dim mb-2">
                   <span>匹配度: {{ (res.similarity * 100).toFixed(1) }}%</span>
                   <span class="truncate max-w-[100px]">{{
@@ -420,11 +464,98 @@ const formatSize = (bytes: number) => {
               </div>
             </div>
 
-            <div
-              v-else-if="!searching && searchQuery"
-              class="mt-6 text-center py-4"
-            >
+            <div v-else-if="!searching && searchQuery" class="mt-6 text-center py-4">
               <p class="text-xs text-dim">未找到相关匹配片段</p>
+            </div>
+          </div>
+
+          <div class="bg-card border border-border rounded-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div class="flex items-center gap-2">
+                <UIcon name="i-heroicons-adjustments-horizontal" class="w-4 h-4 text-emerald-500" />
+
+
+
+                <h2 class="text-xl font-semibold">知识库对话</h2>
+              </div>
+              <div class="flex items-center gap-3">
+                <USelect v-model="selectedCharacterId" :items="characterOptions" placeholder="选择 AI 角色" class="w-48"
+                  :disabled="creatingChat || chatLoading" />
+                <UCheckbox v-model="includeSuggestions" label="返回调优建议" :disabled="true" />
+              </div>
+            </div>
+
+            <div class="space-y-3 max-h-80 overflow-y-auto border border-border rounded-xl p-3 bg-surface">
+              <div v-if="characterOptions.length === 0" class="text-sm text-dim text-center py-6">
+                需要先创建至少一个 AI 角色以发起对话
+              </div>
+              <div v-else-if="chatMessages.length === 0" class="text-sm text-dim text-center py-6">
+                开始提问以获取回答与引用片段
+              </div>
+              <div v-for="(msg, idx) in chatMessages" :key="idx" class="flex gap-2">
+                <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-300">
+                  {{ msg.role === "user" ? "我" : "助手" }}
+                </span>
+                <p class="text-sm text-main leading-6 whitespace-pre-wrap flex-1">
+                  {{ msg.content }}
+                </p>
+              </div>
+              <div v-if="chatError" class="text-xs text-error">{{ chatError }}</div>
+            </div>
+
+            <div class="space-y-2">
+              <UTextarea v-model="chatInput" placeholder="向知识库提问，支持多轮上下文" :rows="3" class="w-full" />
+              <div class="flex items-center justify-between gap-3">
+                <small class="text-dim">自动附带上下文，返回引用片段</small>
+                <UButton color="primary" :loading="chatLoading || creatingChat"
+                  class="bg-emerald-600 hover:bg-emerald-700 border-none"
+                  :disabled="chatLoading || creatingChat || characterOptions.length === 0" @click="sendChat">
+                  {{ creatingChat ? "创建对话..." : "发送" }}
+                </UButton>
+              </div>
+            </div>
+
+            <div v-if="retrievals.length" class="space-y-2">
+              <div class="flex items-center gap-2 text-sm font-semibold">
+                <UIcon name="i-heroicons-light-bulb" class="w-4 h-4 text-amber-400" />
+                中间信息
+              </div>
+              <div class="space-y-2">
+                <div v-for="(chunk, idx) in retrievals" :key="idx"
+                  class="border border-border rounded-lg p-3 bg-surface">
+                  <div class="flex items-center justify-between text-xs text-dim mb-2">
+                    <span>
+                      匹配度
+                      {{
+                        chunk?.similarity
+                          ? `${(chunk.similarity * 100).toFixed(1)}%`
+                          : "--"
+                      }}
+                    </span>
+                    <span class="truncate max-w-[140px]">
+                      {{ chunk?.metadata?.fileName || "片段" }}
+                    </span>
+                  </div>
+                  <p class="text-sm text-main whitespace-pre-wrap">{{ chunk.content }}</p>
+                  <div class="flex gap-2 mt-2">
+                    <UButton size="xs" variant="ghost" color="neutral" @click="insertSnippet(chunk.content)">
+                      插入提问
+                    </UButton>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="suggestions.length" class="space-y-2">
+              <div class="flex items-center gap-2 text-sm font-semibold">
+                <UIcon name="i-heroicons-adjustments-horizontal" class="w-4 h-4 text-emerald-500" />
+                调优建议
+              </div>
+              <ul class="space-y-1 text-sm text-main">
+                <li v-for="(tip, idx) in suggestions" :key="idx" class="bg-surface border border-border rounded-md p-2">
+                  {{ tip }}
+                </li>
+              </ul>
             </div>
           </div>
         </div>
@@ -438,69 +569,38 @@ const formatSize = (bytes: number) => {
           <template #header>
             <div class="flex items-center justify-between w-full">
               <h3 class="text-base font-semibold">上传新文档</h3>
-              <UButton
-                color="neutral"
-                variant="ghost"
-                icon="i-heroicons-x-mark-20-solid"
-                class="-my-1"
-                @click="isUploadModalOpen = false"
-              />
+              <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark-20-solid" class="-my-1"
+                @click="isUploadModalOpen = false" />
             </div>
           </template>
 
           <div class="space-y-4">
             <div
               class="border-2 border-dashed border-white/10 rounded-xl p-10 text-center hover:border-green-500/50 transition-colors cursor-pointer"
-              @click="fileInput?.click()"
-            >
-              <input
-                ref="fileInput"
-                type="file"
-                class="hidden"
-                @change="onFileChange"
-                accept=".pdf,.docx,.txt,.md,.csv,.json"
-              />
+              @click="fileInput?.click()">
+              <input ref="fileInput" type="file" class="hidden" @change="onFileChange"
+                accept=".pdf,.docx,.txt,.md,.csv,.json" />
               <div v-if="!selectedFile">
-                <UIcon
-                  name="i-heroicons-document-plus"
-                  class="w-12 h-12 text-gray-500 mb-2 mx-auto"
-                />
+                <UIcon name="i-heroicons-document-plus" class="w-12 h-12 text-gray-500 mb-2 mx-auto" />
                 <p class="text-sm text-gray-400">点击或拖拽文件到此处</p>
                 <p class="text-xs text-gray-500 mt-1">
                   支持 PDF, Word, TXT, MD, CSV, JSON
                 </p>
               </div>
               <div v-else class="flex items-center justify-center gap-2">
-                <UIcon
-                  name="i-heroicons-document-check"
-                  class="w-8 h-8 text-green-500"
-                />
+                <UIcon name="i-heroicons-document-check" class="w-8 h-8 text-green-500" />
                 <span class="font-medium text-green-400">{{
                   selectedFile.name
                 }}</span>
-                <UButton
-                  color="neutral"
-                  variant="ghost"
-                  icon="i-heroicons-x-mark"
-                  size="xs"
-                  @click.stop="selectedFile = null"
-                />
+                <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" size="xs"
+                  @click.stop="selectedFile = null" />
               </div>
             </div>
 
             <div class="flex justify-end gap-3 mt-6">
-              <UButton
-                variant="ghost"
-                color="neutral"
-                @click="isUploadModalOpen = false"
-                >取消</UButton
-              >
-              <UButton
-                color="primary"
-                class="bg-gradient-to-r from-green-500 to-teal-500"
-                :disabled="!selectedFile"
-                @click="handleUpload"
-              >
+              <UButton variant="ghost" color="neutral" @click="isUploadModalOpen = false">取消</UButton>
+              <UButton color="primary" class="bg-gradient-to-r from-green-500 to-teal-500" :disabled="!selectedFile"
+                @click="handleUpload">
                 开始上传并处理
               </UButton>
             </div>
@@ -516,55 +616,29 @@ const formatSize = (bytes: number) => {
           <template #header>
             <div class="flex items-center justify-between w-full">
               <h3 class="text-base font-semibold">编辑知识库</h3>
-              <UButton
-                color="neutral"
-                variant="ghost"
-                icon="i-heroicons-x-mark-20-solid"
-                class="-my-1"
-                @click="isEditModalOpen = false"
-              />
+              <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark-20-solid" class="-my-1"
+                @click="isEditModalOpen = false" />
             </div>
           </template>
 
           <UForm :state="editForm" class="space-y-4" @submit="handleUpdate">
             <UFormField label="名称" name="name" required>
-              <UInput
-                v-model="editForm.name"
-                placeholder="知识库名称"
-                class="w-full"
-              />
+              <UInput v-model="editForm.name" placeholder="知识库名称" class="w-full" />
             </UFormField>
 
             <UFormField label="描述" name="description">
-              <UTextarea
-                v-model="editForm.description"
-                placeholder="简单描述这个知识库"
-                class="w-full"
-              />
+              <UTextarea v-model="editForm.description" placeholder="简单描述这个知识库" class="w-full" />
             </UFormField>
 
-            <UFormField
-              label="公开访问"
-              name="isPublic"
-              help="开启后，其他用户可以查看并搜索该知识库内容"
-            >
+            <UFormField label="公开访问" name="isPublic" help="开启后，其他用户可以查看并搜索该知识库内容">
               <USwitch v-model="editForm.isPublic" />
             </UFormField>
 
             <div class="flex justify-end gap-3 mt-6">
-              <UButton
-                variant="ghost"
-                color="neutral"
-                @click="isEditModalOpen = false"
-                >取消</UButton
-              >
-              <UButton
-                type="submit"
-                color="primary"
-                class="bg-gradient-to-r from-green-500 to-teal-500"
-                :loading="isUpdating"
-                >保存修改</UButton
-              >
+              <UButton variant="ghost" color="neutral" @click="isEditModalOpen = false">取消</UButton>
+              <UButton type="submit" color="primary" class="bg-gradient-to-r from-green-500 to-teal-500"
+                :loading="isUpdating">
+                保存修改</UButton>
             </div>
           </UForm>
         </UCard>

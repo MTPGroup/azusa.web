@@ -158,25 +158,46 @@ export const useCharacterStore = defineStore("characters", () => {
     }
   };
 
-  const subscribeToChanges = () => {
-    if (channel) return;
+  let channelProfiles: any | null = null;
 
-    channel = client
-      .channel("public:characters")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "characters" },
-        () => {
-          fetchCharacters();
-        }
-      )
-      .subscribe();
+  const subscribeToChanges = () => {
+    if (!channel) {
+      channel = client
+        .channel("public:characters")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "characters" },
+          () => {
+            fetchCharacters();
+          }
+        )
+        .subscribe();
+    }
+
+    if (!channelProfiles) {
+      channelProfiles = client
+        .channel("public:profiles-for-characters")
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "profiles" },
+          () => {
+            if (characters.value.length > 0) {
+              fetchCharacters();
+            }
+          }
+        )
+        .subscribe();
+    }
   };
 
   const unsubscribeFromChanges = () => {
     if (channel) {
       client.removeChannel(channel);
       channel = null;
+    }
+    if (channelProfiles) {
+      client.removeChannel(channelProfiles);
+      channelProfiles = null;
     }
   };
 

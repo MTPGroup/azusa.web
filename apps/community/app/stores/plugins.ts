@@ -239,25 +239,45 @@ export const usePluginsStore = defineStore("plugins", () => {
   };
 
   let pluginsSubscription: any = null;
+  let profilesSubscription: any = null;
   const subscribeToChanges = () => {
-    if (pluginsSubscription) return;
+    if (!pluginsSubscription) {
+      pluginsSubscription = client
+        .channel("public:plugins")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "plugins" },
+          () => {
+            fetchPlugins();
+          }
+        )
+        .subscribe();
+    }
 
-    pluginsSubscription = client
-      .channel("public:plugins")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "plugins" },
-        () => {
-          fetchPlugins();
-        }
-      )
-      .subscribe();
+    if (!profilesSubscription) {
+      profilesSubscription = client
+        .channel("public:profiles-for-plugins")
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "profiles" },
+          () => {
+            if (plugins.value.length > 0) {
+              fetchPlugins();
+            }
+          }
+        )
+        .subscribe();
+    }
   };
 
   const unsubscribeFromChanges = () => {
     if (pluginsSubscription) {
       client.removeChannel(pluginsSubscription);
       pluginsSubscription = null;
+    }
+    if (profilesSubscription) {
+      client.removeChannel(profilesSubscription);
+      profilesSubscription = null;
     }
   };
 
