@@ -4,7 +4,7 @@
       <h1 class="text-6xl font-bold mb-6">
         欢迎来到
         <span
-          class="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent"
+          class="bg-gradient-to-r from-emerald-500 to-lime-500 bg-clip-text text-transparent"
           >Azusa</span
         >
       </h1>
@@ -16,7 +16,7 @@
           to="/plugins"
           size="xl"
           color="primary"
-          class="bg-gradient-to-r from-blue-500 to-purple-500 border-none"
+          class="bg-gradient-to-r from-emerald-500 to-lime-500 border-none"
         >
           浏览插件
         </UButton>
@@ -49,10 +49,10 @@
 
       <NuxtLink to="/characters" class="block group">
         <div
-          class="bg-gray-900 border border-white/10 rounded-xl p-8 hover:border-purple-500 transition-colors h-full text-left"
+          class="bg-gray-900 border border-white/10 rounded-xl p-8 hover:border-emerald-500 transition-colors h-full text-left"
         >
           <h3
-            class="text-2xl font-semibold mb-3 group-hover:text-purple-400 transition-colors"
+            class="text-2xl font-semibold mb-3 group-hover:text-emerald-400 transition-colors"
           >
             AI 角色
           </h3>

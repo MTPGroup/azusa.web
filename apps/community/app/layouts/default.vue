@@ -62,7 +62,7 @@ const userMenuItems = computed(() => [
       <template #title>
         <NuxtLink to="/" class="flex items-center gap-2 text-xl font-bold">
           <span
-            class="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent italic"
+            class="bg-gradient-to-r from-emerald-500 to-lime-500 bg-clip-text text-transparent italic"
             >Azusa</span
           >
           <span class="dark:text-white text-gray-900 border-none">社区</span>
@@ -85,7 +85,7 @@ const userMenuItems = computed(() => [
                   :src="userStore.profile?.avatar"
                   :alt="userStore.profile?.username"
                   size="sm"
-                  class="cursor-pointer ring-2 ring-border hover:ring-purple-500 transition-all shadow-lg"
+                  class="cursor-pointer ring-2 ring-border hover:ring-emerald-500 transition-all shadow-lg"
                 />
                 <template #account="{ item }">
                   <div class="text-left px-2 py-1.5">
@@ -105,7 +105,7 @@ const userMenuItems = computed(() => [
               <UButton
                 color="primary"
                 variant="solid"
-                class="bg-gradient-to-r from-blue-500 to-purple-500 border-none hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all font-semibold"
+                class="bg-gradient-to-r from-emerald-500 to-lime-500 border-none hover:shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all font-semibold"
                 @click="openAuthModal"
               >
                 登 录

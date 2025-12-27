@@ -214,7 +214,7 @@ const handleToggleLike = async (plugin: any) => {
         />
         <UButton
           color="primary"
-          class="bg-gradient-to-r from-blue-500 to-purple-500 border-none shrink-0"
+          class="bg-gradient-to-r from-emerald-500 to-lime-500 border-none shrink-0"
           @click="openSubmitModal"
         >
           提交插件

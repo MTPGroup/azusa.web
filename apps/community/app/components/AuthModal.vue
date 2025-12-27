@@ -77,7 +77,7 @@ const handleSubmit = async () => {
       <div class="flex flex-col md:flex-row bg-app md:h-[540px]">
         <!-- Left Side: Branding (Hidden on mobile) -->
         <div
-          class="hidden md:flex w-5/12 bg-gradient-to-br from-indigo-600 via-purple-700 to-pink-600 p-10 flex-col justify-between text-white relative h-full"
+          class="hidden md:flex w-5/12 bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 p-10 flex-col justify-between text-white relative h-full"
         >
           <!-- Animated Background Elements -->
           <div
@@ -87,7 +87,8 @@ const handleSubmit = async () => {
             class="absolute -top-20 -left-20 w-64 h-64 bg-white/10 rounded-full blur-[100px]"
           ></div>
           <div
-            class="absolute -bottom-20 -right-20 w-64 h-64 bg-indigo-400/20 rounded-full blur-[100px]"
+              class="absolute -bottom-20 -right-20 w-64 h-64 bg-emerald-400/20 rounded-full blur-[100px]"
+
           ></div>
 
           <div class="relative z-10">
@@ -154,7 +155,7 @@ const handleSubmit = async () => {
                   class="w-full"
                   size="xl"
                   :ui="{
-                    base: 'bg-surface border-border text-main placeholder-dim focus:ring-2 focus:ring-indigo-500/50',
+                    base: 'bg-surface border-border text-main placeholder-dim focus:ring-2 focus:ring-emerald-500/50',
                   }"
                 />
               </UFormField>
@@ -168,7 +169,7 @@ const handleSubmit = async () => {
                   class="w-full"
                   size="xl"
                   :ui="{
-                    base: 'bg-surface border-border text-main placeholder-dim focus:ring-2 focus:ring-indigo-500/50',
+                    base: 'bg-surface border-border text-main placeholder-dim focus:ring-2 focus:ring-emerald-500/50',
                   }"
                 />
               </UFormField>
@@ -186,7 +187,7 @@ const handleSubmit = async () => {
                 block
                 :loading="loading"
                 size="xl"
-                class="bg-gradient-to-r from-indigo-500 to-purple-600 border-none w-full shadow-lg shadow-purple-500/20 h-12 text-base font-semibold"
+                class="w-full h-12 text-base font-semibold bg-emerald-600 hover:bg-emerald-700 border-none shadow-lg shadow-emerald-500/20 transition-colors duration-200"
               >
                 {{ isLogin ? "立即登录" : "提交注册" }}
               </UButton>
@@ -195,7 +196,7 @@ const handleSubmit = async () => {
                 {{ isLogin ? "还没有账号？" : "已有账号？" }}
                 <button
                   type="button"
-                  class="text-indigo-400 font-semibold cursor-pointer hover:text-indigo-300 transition-colors ml-1"
+                  class="text-emerald-400 font-semibold cursor-pointer hover:text-emerald-300 transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded ml-1"
                   @click="toggleMode"
                 >
                   {{ isLogin ? "立即注册" : "返回登录" }}
