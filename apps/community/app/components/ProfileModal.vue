@@ -8,11 +8,16 @@ const state = reactive({
   avatar: "",
 });
 
+const uploadingAvatar = ref(false);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const selectedFileName = ref("");
+
 const resetForm = () => {
   if (userStore.profile) {
     state.username = userStore.profile.username || "";
     state.avatar = userStore.profile.avatar || "";
   }
+  selectedFileName.value = "";
 };
 
 // Reset form when modal opens
@@ -21,6 +26,26 @@ watch(isOpen, (val) => {
     resetForm();
   }
 });
+
+const handleAvatarFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+  selectedFileName.value = file.name;
+  uploadingAvatar.value = true;
+  const result = await userStore.uploadAvatar(file);
+  uploadingAvatar.value = false;
+  if (result.success && result.avatarUrl) {
+    state.avatar = result.avatarUrl;
+    toast.add({ title: "头像上传成功", color: "success" });
+  } else {
+    toast.add({ title: result.error || "上传失败", color: "error" });
+  }
+};
+
+const triggerFileSelect = () => {
+  fileInputRef.value?.click();
+};
 
 const handleSubmit = async () => {
   if (!state.username) {
@@ -54,7 +79,7 @@ const handleSubmit = async () => {
       <div class="flex flex-col">
         <!-- Header -->
         <div
-          class="p-6 border-b border-border bg-gradient-to-r from-indigo-500/10 to-purple-500/10"
+          class="p-6 border-b border-border bg-gradient-to-r from-emerald-500/10 to-lime-500/10"
         >
           <div class="flex items-center gap-4">
             <div
@@ -74,9 +99,9 @@ const handleSubmit = async () => {
 
         <!-- Body -->
         <div class="p-8 space-y-8">
-          <!-- Avatar Preview Section -->
-          <div class="flex flex-col items-center gap-4">
-            <div class="relative group">
+           <!-- Avatar Preview Section -->
+          <div class="flex flex-col items-center gap-3 text-center">
+            <div class="relative group cursor-pointer" @click="triggerFileSelect">
               <UAvatar
                 :src="state.avatar"
                 :alt="state.username"
@@ -84,15 +109,24 @@ const handleSubmit = async () => {
                 class="w-24 h-24 ring-4 ring-primary/20 shadow-xl transition-all group-hover:ring-primary/40"
               />
               <div
-                class="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                class="absolute inset-0 bg-black/45 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
               >
                 <UIcon name="i-heroicons-camera" class="w-8 h-8 text-white" />
               </div>
             </div>
-            <p class="text-xs text-dim">建议使用正方形图片 200x200px</p>
+            <p class="text-xs text-dim">点击头像上传本地图片（jpg/png/webp/gif，≤5MB）</p>
+            <p v-if="selectedFileName" class="text-xs text-dim truncate max-w-[160px]">已选择：{{ selectedFileName }}</p>
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleAvatarFileChange"
+            />
           </div>
 
           <UForm :state="state" @submit="handleSubmit" class="space-y-6">
+
             <UFormField
               label="用户名"
               name="username"
@@ -132,7 +166,7 @@ const handleSubmit = async () => {
                 type="submit"
                 label="保存更改"
                 color="primary"
-                class="flex-1 justify-center h-12 text-base bg-gradient-to-r from-primary to-purple-600 shadow-lg shadow-primary/20"
+                class="flex-1 justify-center h-12 text-base bg-gradient-to-r from-emerald-500 to-lime-600 shadow-lg shadow-emerald-500/20"
                 :loading="userStore.loading"
               />
             </div>

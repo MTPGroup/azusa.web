@@ -4,6 +4,8 @@ const characterStore = useCharacterStore();
 const knowledgeStore = useKnowledgeStore();
 const userStore = useUserStore();
 const toast = useToast();
+const supabase = useSupabaseClient();
+const supabaseUser = useSupabaseUser();
 
 const characterId = route.params.id as string;
 const character = ref<Character | null>(null);
@@ -26,6 +28,10 @@ const isAddKBModalOpen = ref(false);
 const selectedKBId = ref("");
 const priority = ref(0);
 
+const uploadingAvatar = ref(false);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const selectedFileName = ref("");
+
 const fetchDetail = async () => {
   loading.value = true;
   try {
@@ -33,13 +39,12 @@ const fetchDetail = async () => {
     if (!data) throw new Error("Character not found");
     character.value = data;
 
-    const { data: kbData, error: kbError } =
-      await useSupabaseClient().functions.invoke(
-        `characters/${characterId}/knowledge-bases`,
-        {
-          method: "GET",
-        }
-      );
+    const { data: kbData, error: kbError } = await supabase.functions.invoke(
+      `characters/${characterId}/knowledge-bases`,
+      {
+        method: "GET",
+      }
+    );
     if (kbError) throw kbError;
     linkedKBs.value = kbData.data;
   } catch (err) {
@@ -53,17 +58,9 @@ onMounted(async () => {
   await fetchDetail();
 });
 
-watch(
-  () => knowledgeStore.knowledgeBases,
-  (newVal) => {
-    console.log("[Debug] knowledgeBases changed:", newVal);
-  },
-  { deep: true }
-);
 
 const openAddKBModal = async () => {
   isAddKBModalOpen.value = true;
-  // Only fetch if empty to avoid redundant requests, but await it
   if (knowledgeStore.knowledgeBases.length === 0) {
     await knowledgeStore.fetchKnowledgeBases();
   }
@@ -72,7 +69,7 @@ const openAddKBModal = async () => {
 const handleLinkKB = async () => {
   if (!selectedKBId.value) return;
   try {
-    const { error } = await useSupabaseClient().functions.invoke(
+    const { error } = await supabase.functions.invoke(
       `characters/${characterId}/knowledge-bases`,
       {
         method: "POST",
@@ -105,19 +102,73 @@ const openEditModal = () => {
 };
 
 const handleUpdate = async () => {
-  if (!editForm.value.name) return;
+  if (!editForm.value.name) {
+    toast.add({ title: "请输入角色名称", color: "error" });
+    return;
+  }
+
   isUpdating.value = true;
-  try {
-    await characterStore.updateCharacter(characterId, editForm.value);
-    toast.add({ title: "修改成功", color: "success" });
+  const result = await characterStore.updateCharacter(characterId, {
+    name: editForm.value.name,
+    signature: editForm.value.signature,
+    avatarUrl: editForm.value.avatarUrl,
+    persona: editForm.value.persona,
+    isPublic: editForm.value.isPublic,
+  });
+  isUpdating.value = false;
+
+  if (result) {
+    toast.add({ title: "角色信息已更新", color: "success" });
     isEditModalOpen.value = false;
     await fetchDetail();
-  } catch (err) {
-    toast.add({ title: "修改失败", color: "error" });
-  } finally {
-    isUpdating.value = false;
+  } else {
+    toast.add({ title: "更新失败，请稍后重试", color: "error" });
   }
 };
+
+const triggerAvatarSelect = () => {
+  fileInputRef.value?.click();
+};
+
+const handleAvatarFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  if (!allowed.includes(file.type)) {
+    toast.add({ title: "仅支持 jpg/png/webp/gif", color: "error" });
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    toast.add({ title: "文件需小于 5MB", color: "error" });
+    return;
+  }
+
+  selectedFileName.value = file.name;
+  uploadingAvatar.value = true;
+  const safeName = file.name.trim().replace(/\s+/g, "_").replace(/[^A-Za-z0-9._-]/g, "");
+  const path = `${supabaseUser.value?.id || "user"}/characters/${Date.now()}_${safeName || "avatar"}`;
+  const { error: uploadError } = await supabase.storage
+    .from("avatars")
+    .upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+    });
+  if (uploadError) {
+    uploadingAvatar.value = false;
+    toast.add({ title: "上传失败", color: "error" });
+    return;
+  }
+
+  const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+  uploadingAvatar.value = false;
+  if (urlData?.publicUrl) {
+    editForm.value.avatarUrl = urlData.publicUrl;
+    toast.add({ title: "头像已更新", color: "success" });
+  }
+};
+
 
 const handleUnlinkKB = async (kbId: string) => {
   try {
@@ -165,6 +216,15 @@ const handleDelete = async () => {
     </div>
 
     <div v-else-if="character" class="space-y-8">
+      <div class="flex items-center gap-3">
+        <UButton
+          icon="i-heroicons-arrow-left"
+          color="neutral"
+          variant="ghost"
+          @click="navigateTo('/characters')"
+        />
+        <span class="text-sm text-dim">返回角色列表</span>
+      </div>
       <!-- Header Section -->
       <section class="flex flex-col md:flex-row gap-8 items-start">
         <UAvatar
@@ -407,8 +467,11 @@ const handleDelete = async () => {
           </div>
 
           <div class="p-6 overflow-y-auto space-y-6 flex-1">
-            <div class="flex flex-col items-center gap-4">
-              <div class="relative group">
+            <div class="flex flex-col items-center gap-3 text-center">
+              <div
+                class="relative group cursor-pointer"
+                @click="triggerAvatarSelect"
+              >
                 <UAvatar
                   :src="editForm.avatarUrl"
                   :alt="editForm.name || '角色头像预览'"
@@ -416,7 +479,7 @@ const handleDelete = async () => {
                   class="w-24 h-24 ring-4 ring-primary/20 shadow-xl transition-all group-hover:ring-primary/40"
                 />
                 <div
-                  class="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                  class="absolute inset-0 bg-black/45 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
                 >
                   <UIcon
                     name="i-heroicons-camera"
@@ -424,7 +487,17 @@ const handleDelete = async () => {
                   />
                 </div>
               </div>
-              <p class="text-xs text-dim">建议使用正方形图片 200x200px</p>
+              <p class="text-xs text-dim">点击头像上传本地图片（≤5MB）</p>
+              <p v-if="selectedFileName" class="text-xs text-dim truncate max-w-[160px]">
+                已选择：{{ selectedFileName }}
+              </p>
+              <input
+                ref="fileInputRef"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="handleAvatarFileChange"
+              />
             </div>
 
             <UFormField label="名称" required>

@@ -1,11 +1,22 @@
 import { defineStore } from "pinia";
 
+import { useCharacterStore } from "@/stores/characters";
+import { useKnowledgeStore } from "@/stores/knowledge";
+import { usePluginsStore } from "@/stores/plugins";
+
 export const useUserStore = defineStore("user", () => {
   const profile = ref<any>(null);
   const loading = ref(false);
   const client = useSupabaseClient();
   const session = useSupabaseSession();
   const user = useSupabaseUser();
+  const config = useRuntimeConfig();
+  const functionsBase = `${(config.public?.supabase?.url || "").replace(/\/$/, "")}/functions/v1`;
+  const supabaseKey = config.public?.supabase?.key || "";
+
+  const characterStore = useCharacterStore();
+  const knowledgeStore = useKnowledgeStore();
+  const pluginsStore = usePluginsStore();
 
   console.log(
     "[UserStore] Initializing, session:",
@@ -105,6 +116,15 @@ export const useUserStore = defineStore("user", () => {
 
       if (data?.success) {
         profile.value = data.data;
+        if (characterStore.characters.length > 0) {
+          characterStore.fetchCharacters();
+        }
+        if (knowledgeStore.knowledgeBases.length > 0) {
+          knowledgeStore.fetchKnowledgeBases();
+        }
+        if (pluginsStore.plugins.length > 0) {
+          pluginsStore.fetchPlugins();
+        }
         return { success: true };
       }
 
@@ -120,11 +140,50 @@ export const useUserStore = defineStore("user", () => {
     }
   };
 
+  const uploadAvatar = async (file: File) => {
+    if (!file) return { success: false, error: "请选择文件" };
+    loading.value = true;
+    try {
+      const { data: sessionData } = await client.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`${functionsBase}/profiles/avatar`, {
+        method: "POST",
+        headers: {
+          ...(supabaseKey ? { apikey: supabaseKey } : {}),
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json?.success) {
+        const message = json?.error?.message || "上传失败";
+        return { success: false, error: message };
+      }
+
+      const avatarUrl = json.data?.avatarUrl;
+      if (avatarUrl) {
+        profile.value = json.data?.profile || profile.value;
+        return { success: true, avatarUrl };
+      }
+      return { success: false, error: "未获取到头像地址" };
+    } catch (err: any) {
+      console.error("Upload avatar error:", err);
+      return { success: false, error: err.message };
+    } finally {
+      loading.value = false;
+    }
+  };
+
   return {
     profile,
     loading,
     fetchProfile,
     clearProfile,
     updateProfile,
+    uploadAvatar,
   };
 });

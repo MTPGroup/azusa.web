@@ -2,6 +2,8 @@
 const characterStore = useCharacterStore();
 const userStore = useUserStore();
 const toast = useToast();
+const supabase = useSupabaseClient();
+const supabaseUser = useSupabaseUser();
 
 const search = ref("");
 const isCreateModalOpen = ref(false);
@@ -18,6 +20,9 @@ const newCharacter = ref({
 });
 
 const isSubmitting = ref(false);
+const uploadingAvatar = ref(false);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const selectedFileName = ref("");
 
 const handleFetch = async (page = 1) => {
   await characterStore.fetchCharacters({
@@ -47,6 +52,7 @@ const openCreateModal = () => {
     persona: "",
     isPublic: true,
   };
+  selectedFileName.value = "";
   isCreateModalOpen.value = true;
 };
 
@@ -59,19 +65,63 @@ const handleCreate = async () => {
     toast.add({
       title: "创建成功",
       description: `角色 ${newCharacter.value.name} 已创建`,
-      color: "success",
     });
-    handleFetch(1);
-  } catch (err) {
+    await handleFetch();
+  } catch (err: any) {
+    console.error("Create character error:", err);
     toast.add({
       title: "创建失败",
-      description: "请稍后再试",
+      description: err.message || "请稍后重试",
       color: "error",
     });
   } finally {
     isSubmitting.value = false;
   }
 };
+
+const triggerAvatarSelect = () => {
+  fileInputRef.value?.click();
+};
+
+const handleAvatarFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  if (!allowed.includes(file.type)) {
+    toast.add({ title: "仅支持 jpg/png/webp/gif", color: "error" });
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    toast.add({ title: "文件需小于 5MB", color: "error" });
+    return;
+  }
+
+  selectedFileName.value = file.name;
+  uploadingAvatar.value = true;
+  const safeName = file.name.trim().replace(/\s+/g, "_").replace(/[^A-Za-z0-9._-]/g, "");
+  const path = `${supabaseUser.value?.id || "user"}/characters/${Date.now()}_${safeName || "avatar"}`;
+  const { error: uploadError } = await supabase.storage
+    .from("avatars")
+    .upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+    });
+  if (uploadError) {
+    uploadingAvatar.value = false;
+    toast.add({ title: "上传失败", color: "error" });
+    return;
+  }
+
+  const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+  uploadingAvatar.value = false;
+  if (urlData?.publicUrl) {
+    newCharacter.value.avatarUrl = urlData.publicUrl;
+    toast.add({ title: "头像已更新", color: "success" });
+  }
+};
+
 
 const confirmDelete = (char: Character) => {
   characterToDelete.value = char;
@@ -300,25 +350,59 @@ const handleDelete = async () => {
             />
           </div>
 
-          <div class="p-6 overflow-y-auto space-y-6 flex-1">
-            <UFormField label="名称" required>
-              <UInput
-                v-model="newCharacter.name"
-                placeholder="为你的角色起个名字"
-                size="lg"
-                :ui="{ base: 'rounded-xl' }"
-              />
-            </UFormField>
+            <div class="p-6 overflow-y-auto space-y-6 flex-1">
+              <div class="flex flex-col items-center gap-3 text-center">
+                <div
+                  class="relative group cursor-pointer"
+                  @click="triggerAvatarSelect"
+                >
+                  <UAvatar
+                    :src="newCharacter.avatarUrl"
+                    :alt="newCharacter.name || '角色头像预览'"
+                    size="3xl"
+                    class="w-24 h-24 ring-4 ring-primary/20 shadow-xl transition-all group-hover:ring-primary/40"
+                  />
+                  <div
+                    class="absolute inset-0 bg-black/45 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                  >
+                    <UIcon
+                      name="i-heroicons-camera"
+                      class="w-8 h-8 text-white"
+                    />
+                  </div>
+                </div>
+                <p class="text-xs text-dim">点击头像上传本地图片（≤5MB）</p>
+                <p v-if="selectedFileName" class="text-xs text-dim truncate max-w-[160px]">
+                  已选择：{{ selectedFileName }}
+                </p>
+                <input
+                  ref="fileInputRef"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="handleAvatarFileChange"
+                />
+              </div>
 
-            <UFormField label="头像 URL">
-              <UInput
-                v-model="newCharacter.avatarUrl"
-                placeholder="https://..."
-                size="lg"
-                :ui="{ base: 'rounded-xl' }"
-                class="w-full"
-              />
-            </UFormField>
+              <UFormField label="名称" required>
+                <UInput
+                  v-model="newCharacter.name"
+                  placeholder="为你的角色起个名字"
+                  size="lg"
+                  :ui="{ base: 'rounded-xl' }"
+                />
+              </UFormField>
+
+              <UFormField label="头像 URL">
+                <UInput
+                  v-model="newCharacter.avatarUrl"
+                  placeholder="https://..."
+                  size="lg"
+                  :ui="{ base: 'rounded-xl' }"
+                  class="w-full"
+                />
+              </UFormField>
+
 
             <UFormField label="个性签名/简介">
               <UTextarea
