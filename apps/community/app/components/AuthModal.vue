@@ -3,6 +3,9 @@ const isOpen = defineModel<boolean>("isOpen", { default: false });
 const isLogin = ref(true);
 const loading = ref(false);
 const errorMsg = ref("");
+const infoMsg = ref("");
+const isOtpStep = ref(false);
+const verificationCode = ref("");
 
 const client = useSupabaseClient();
 
@@ -14,7 +17,10 @@ const state = reactive({
 const resetForm = () => {
   state.email = "";
   state.password = "";
+  verificationCode.value = "";
+  isOtpStep.value = false;
   errorMsg.value = "";
+  infoMsg.value = "";
 };
 
 const toggleMode = () => {
@@ -29,9 +35,62 @@ watch(isOpen, (val) => {
   }
 });
 
+const handleVerifyOtp = async () => {
+  if (!verificationCode.value.trim()) {
+    errorMsg.value = "请输入验证码";
+    return;
+  }
+  loading.value = true;
+  errorMsg.value = "";
+  try {
+    const { data, error } = await client.auth.verifyOtp({
+      email: state.email,
+      token: verificationCode.value.trim(),
+      type: "signup",
+    });
+    if (error) throw error;
+    if (!data.session) {
+      // 部分场景需要再登录以获取 session
+      const { error: signInError } = await client.auth.signInWithPassword({
+        email: state.email,
+        password: state.password,
+      });
+      if (signInError) throw signInError;
+    }
+    const userStore = useUserStore();
+    await userStore.fetchProfile();
+    setTimeout(() => {
+      isOpen.value = false;
+    }, 100);
+  } catch (e: any) {
+    errorMsg.value = e.message || "验证码校验失败";
+  } finally {
+    loading.value = false;
+  }
+};
+
+const resendCode = async () => {
+  loading.value = true;
+  errorMsg.value = "";
+  infoMsg.value = "";
+  try {
+    const { error } = await client.auth.signUp({
+      email: state.email,
+      password: state.password,
+    });
+    if (error) throw error;
+    infoMsg.value = "验证码已重新发送，1 小时内有效";
+  } catch (e: any) {
+    errorMsg.value = e.message || "验证码发送失败";
+  } finally {
+    loading.value = false;
+  }
+};
+
 const handleSubmit = async () => {
   loading.value = true;
   errorMsg.value = "";
+  infoMsg.value = "";
 
   try {
     if (isLogin.value) {
@@ -43,19 +102,24 @@ const handleSubmit = async () => {
 
       const userStore = useUserStore();
       await userStore.fetchProfile();
-    } else {
-      const { error } = await client.auth.signUp({
-        email: state.email,
-        password: state.password,
-      });
-      if (error) throw error;
-      alert("注册成功，请查收确认邮件（如已启用邮件确认）");
+      setTimeout(() => {
+        isOpen.value = false;
+      }, 100);
+      return;
     }
 
-    // Close modal after a short delay to allow background processes to settle
-    setTimeout(() => {
-      isOpen.value = false;
-    }, 100);
+    if (isOtpStep.value) {
+      await handleVerifyOtp();
+      return;
+    }
+
+    const { error } = await client.auth.signUp({
+      email: state.email,
+      password: state.password,
+    });
+    if (error) throw error;
+    isOtpStep.value = true;
+    infoMsg.value = "验证码已发送到邮箱，1 小时内有效";
   } catch (e: any) {
     errorMsg.value = e.message || "发生错误";
   } finally {
@@ -174,6 +238,23 @@ const handleSubmit = async () => {
                 />
               </UFormField>
 
+              <UFormField v-if="!isLogin && isOtpStep" label="邮箱验证码" name="code">
+                <UInput
+                  v-model="verificationCode"
+                  placeholder="输入邮件中的 6 位验证码"
+                  icon="i-heroicons-key"
+                  class="w-full"
+                  size="xl"
+                  :ui="{
+                    base: 'bg-surface border-border text-main placeholder-dim focus:ring-2 focus:ring-emerald-500/50',
+                  }"
+                />
+              </UFormField>
+
+              <div v-if="infoMsg" class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-500">
+                {{ infoMsg }}
+              </div>
+
               <div
                 v-if="errorMsg"
                 class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-500"
@@ -181,7 +262,29 @@ const handleSubmit = async () => {
                 {{ errorMsg }}
               </div>
 
+              <div class="flex items-center justify-between gap-3" v-if="!isLogin && isOtpStep">
+                <UButton
+                  variant="ghost"
+                  color="neutral"
+                  size="lg"
+                  :loading="loading"
+                  @click="resendCode"
+                >
+                  重新发送验证码
+                </UButton>
+                <UButton
+                  type="submit"
+                  color="primary"
+                  :loading="loading"
+                  size="lg"
+                  class="flex-1 h-12 text-base font-semibold bg-emerald-600 hover:bg-emerald-700 border-none shadow-lg shadow-emerald-500/20 transition-colors duration-200"
+                >
+                  提交验证码
+                </UButton>
+              </div>
+
               <UButton
+                v-else
                 type="submit"
                 color="primary"
                 block
@@ -189,7 +292,7 @@ const handleSubmit = async () => {
                 size="xl"
                 class="w-full h-12 text-base font-semibold bg-emerald-600 hover:bg-emerald-700 border-none shadow-lg shadow-emerald-500/20 transition-colors duration-200"
               >
-                {{ isLogin ? "立即登录" : "提交注册" }}
+                {{ isLogin ? "立即登录" : "发送验证码" }}
               </UButton>
 
               <div class="text-center text-sm text-dim">
