@@ -38,7 +38,7 @@ watch(isOpen, (val) => {
 const handleVerifyOtp = async () => {
   if (!verificationCode.value.trim()) {
     errorMsg.value = "请输入验证码";
-    return;
+    return false;
   }
   loading.value = true;
   errorMsg.value = "";
@@ -62,8 +62,10 @@ const handleVerifyOtp = async () => {
     setTimeout(() => {
       isOpen.value = false;
     }, 100);
+    return true;
   } catch (e: any) {
     errorMsg.value = e.message || "验证码校验失败";
+    return false;
   } finally {
     loading.value = false;
   }
@@ -109,7 +111,9 @@ const handleSubmit = async () => {
     }
 
     if (isOtpStep.value) {
-      await handleVerifyOtp();
+      const ok = await handleVerifyOtp();
+      if (ok) return;
+      // 若失败，保持在验证码步骤但释放 loading
       return;
     }
 
