@@ -264,6 +264,7 @@ const handleSubmit = async () => {
 
               <div class="flex items-center justify-between gap-3" v-if="!isLogin && isOtpStep">
                 <UButton
+                  type="button"
                   variant="ghost"
                   color="neutral"
                   size="lg"
@@ -277,7 +278,7 @@ const handleSubmit = async () => {
                   color="primary"
                   :loading="loading"
                   size="lg"
-                  class="flex-1 h-12 text-base font-semibold bg-emerald-600 hover:bg-emerald-700 border-none shadow-lg shadow-emerald-500/20 transition-colors duration-200"
+                  class="flex-1 h-12 text-base font-semibold justify-center bg-emerald-600 hover:bg-emerald-700 border-none shadow-lg shadow-emerald-500/20 transition-colors duration-200"
                 >
                   提交验证码
                 </UButton>
