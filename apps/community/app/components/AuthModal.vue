@@ -103,7 +103,8 @@ const handleSubmit = async () => {
       if (error) throw error;
 
       const userStore = useUserStore();
-      await userStore.fetchProfile();
+      // 不阻塞登录流程，避免函数请求延迟导致转圈
+      void userStore.fetchProfile();
       setTimeout(() => {
         isOpen.value = false;
       }, 100);
